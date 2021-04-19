@@ -3,11 +3,17 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-include_directories(${CMAKE_SOURCE_DIR}/Dependencies/GLFW)
-link_directories(${CMAKE_SOURCE_DIR}/Dependences/lib-vc2019)
+# Dependencies directory
+set(DEPS "${CMAKE_SOURCE_DIR}/Dependencies")
+set(GLAD_GL_SRC "${CMAKE_SOURCE_DIR}/Dependencies/GLAD/src/gl.c")
+
+# Required libraries
+find_library(GLFW3_LIB NAMES glfw3 HINTS "${DEPS}/GLFW/lib-vc2019")
 
 # Add source to this project's executable.
-add_executable (xdimav "xdimav.cpp" "xdimav.h")
-target_link_libraries(xdimav glfw3)
+add_executable (xdimav "xdimav.cpp" ${GLAD_GL_SRC})
 
-# TODO: Add tests and install targets if needed.
+# Install targets
+target_include_directories(xdimav PRIVATE "${DEPS}/GLFW/include")
+target_include_directories(xdimav PRIVATE "${DEPS}/GLAD/include")
+target_link_libraries(xdimav PRIVATE ${GLFW3_LIB})

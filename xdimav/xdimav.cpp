@@ -8,12 +8,43 @@
 // the GNU General Public License along with this program. If not, see https://www.gnu.org/licenses/.
 
 
-#include "xdimav.h"
+#include <iostream>
+#include <glad/gl.h>
+#include <GLFW/glfw3.h>
 
-using namespace std;
+void errCB(int error, const char* description)
+{
+	std::fprintf(stderr, "Error #%d: %s\n", error, description);
+}
 
 int main()
 {
-	cout << "Hello CMake." << endl;
-	return 0;
+	int ret = 0;
+	std::string msg;
+	
+	// Initialize GLFW
+	if (glfwInit()) {
+		// Set up context
+		glfwSetErrorCallback(errCB);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+		GLFWwindow* window = glfwCreateWindow(640, 640, "xdimav", NULL, NULL);
+		glfwMakeContextCurrent(window);
+		gladLoadGL(glfwGetProcAddress);
+
+		msg = "OpenGL Initialization Succeeded";
+
+		while (!glfwWindowShouldClose(window));
+
+		glfwDestroyWindow(window);
+	}
+	else {
+		msg = "OpenGL Initialization Failed";
+		ret = -1;
+	}
+
+	std::cout << msg << std::endl;
+
+	glfwTerminate();
+	return ret;
 }
