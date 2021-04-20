@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2021 Ojas Anand.
+// Copyright (c) 2021 Ojas Anand.
 //
 // This file is part of xdimav. xdimav is free software: you can redistribute it and/or modify it under the
 // terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the
@@ -8,6 +8,7 @@
 // the GNU General Public License along with this program. If not, see https://www.gnu.org/licenses/.
 
 
+#include "io.h"
 #include <iostream>
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
@@ -17,33 +18,43 @@ void errCB(int error, const char* description)
 	std::fprintf(stderr, "Error #%d: %s\n", error, description);
 }
 
-int main()
+VideoIO::VideoIO()
+{
+}
+
+int VideoIO::openWindow()
 {
 	int ret = 0;
-	std::string msg;
-	
+
 	// Initialize GLFW
 	if (glfwInit()) {
-		// Set up context
 		glfwSetErrorCallback(errCB);
+
+		// Set up context
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 		GLFWwindow* window = glfwCreateWindow(640, 640, "xdimav", NULL, NULL);
-		glfwMakeContextCurrent(window);
-		gladLoadGL(glfwGetProcAddress);
 
-		msg = "OpenGL Initialization Succeeded";
+		if (window) {
+			glfwMakeContextCurrent(window);
+			glfwSwapInterval(1);
+			gladLoadGL(glfwGetProcAddress);
 
-		while (!glfwWindowShouldClose(window));
+			while (!glfwWindowShouldClose(window)) {
+				glClear(GL_COLOR_BUFFER_BIT);
+				glfwSwapBuffers(window);
+				glfwPollEvents();
+			}
 
-		glfwDestroyWindow(window);
+			glfwDestroyWindow(window);
+		}
+		else {
+			ret = -1;
+		}
 	}
 	else {
-		msg = "OpenGL Initialization Failed";
 		ret = -1;
 	}
-
-	std::cout << msg << std::endl;
 
 	glfwTerminate();
 	return ret;
