@@ -9,9 +9,38 @@
 
 
 #include "io.h"
+#include <iostream>
+
+std::string validateInputFile(int args, const char *filepath)
+{
+	if (args != 2) {
+		std::fprintf(stderr, "Must provide input file location\n");
+		return "";
+	}
+
+	std::string fp(filepath);
+
+	if (fp.find("wav", fp.length() - 3) == std::string::npos) {
+		std::fprintf(stderr, "Input file must be a WAV file\n");
+		return "";
+	}
+
+	const char DELIMITER = '\\';
+	const int LAST_DELIMITER_INX = fp.find_last_of(DELIMITER) + 1;
+
+	return fp.substr(LAST_DELIMITER_INX, (fp.length() - 4) - LAST_DELIMITER_INX);
+}
 
 int main(int argc, char *argv[])
 {
-	VideoIO window;
-	return window.openWindow();
+	std::string title = validateInputFile(argc, argv[1]);
+
+	if (!title.empty()) {
+		AudioIO	audio(argv[1]);
+		// VideoIO window(title);
+		
+		return audio.parseWAVFile();// window.openWindow();
+	}
+
+	return -1;
 }

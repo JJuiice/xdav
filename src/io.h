@@ -12,20 +12,28 @@
 #define IO_H
 
 #include <stdio.h>
+#include <string>
+#include <fstream>
+#include <stdint.h>
 
 class AudioIO
 {
 private:
-	FILE* aFile;
+	std::ifstream m_aFile;
+	int readFileBytes(char (&buffer)[4]);
+	int readFileBytes(uint32_t* val);
+	int readFileBytes(uint16_t *val);
 public:
 	AudioIO(const char *fp);
-	void parseWAVFile(FILE *f);
+	int parseWAVFile();
 };
 
 class VideoIO
 {
+private:
+	std::string m_title;
 public:
-	VideoIO();
+	VideoIO(std::string title);
 	int openWindow();
 };
 
