@@ -25,7 +25,12 @@ std::string validateInputFile(int args, const char *filepath)
 		return "";
 	}
 
+#ifdef _WIN32 
 	const char DELIMITER = '\\';
+#else
+	const char DELIMITER = '/';
+#endif
+
 	const int LAST_DELIMITER_INX = fp.find_last_of(DELIMITER) + 1;
 
 	return fp.substr(LAST_DELIMITER_INX, (fp.length() - 4) - LAST_DELIMITER_INX);
@@ -36,10 +41,10 @@ int main(int argc, char *argv[])
 	std::string title = validateInputFile(argc, argv[1]);
 
 	if (!title.empty()) {
-		AudioIO	audio(argv[1]);
+		AudioIO	audio;
 		// VideoIO window(title);
 		
-		return audio.parseWAVFile();// window.openWindow();
+		return audio.loadWAVFile(argv[1]);// window.openWindow();
 	}
 
 	return -1;

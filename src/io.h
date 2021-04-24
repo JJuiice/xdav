@@ -13,19 +13,38 @@
 
 #include <stdio.h>
 #include <string>
+#include <vector>
 #include <fstream>
 #include <stdint.h>
+
+typedef struct WAV_HEADER {
+	char		riffID[4];
+	uint32_t    riffSize;
+	char		riffFType[4];
+	char		fmtID[4];
+	uint32_t	fmtSize;
+	uint16_t    aFmt;
+	uint16_t	numChans;
+	uint32_t	sRate;
+	uint32_t	byRate;
+	uint16_t	blAlign;
+	uint16_t	bps;
+	char    	dataID[4];
+	uint32_t	dataSize;
+} WAVHeader;
 
 class AudioIO
 {
 private:
-	std::ifstream m_aFile;
-	int readFileBytes(char (&buffer)[4]);
-	int readFileBytes(uint32_t* val);
-	int readFileBytes(uint16_t *val);
+	WAVHeader wh;
+	std::vector<char> wd;
+	int readAudioStream(char* buffer, int bytes, std::ifstream &aFile);
+	void readChar(char* buffer, int* offset, char (&val)[4]);
+	uint16_t read16(char* buffer, int* offset);
+	uint32_t read32(char* buffer, int* offset);
 public:
-	AudioIO(const char *fp);
-	int parseWAVFile();
+	AudioIO();
+	int loadWAVFile(const char* fp);
 };
 
 class VideoIO

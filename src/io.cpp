@@ -14,115 +14,101 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
-typedef struct WAV_HEADER {
-	char		riffID[4];
-	uint32_t    riffSize;
-	char		riffFType[4];
-	char		fmtID[4];
-	uint32_t	fmtSize;
-	uint16_t    aFmt;
-	uint16_t	numChans;
-	uint32_t	sRate;
-	uint32_t	bRate;
-	uint16_t	blAlign;
-	uint16_t	bps;
-	char    	dataID[4];
-	uint32_t	dataSize;
-} WAVHeader;
+#define WAV_HEADER_BYTE_SIZE 44
 
 void errCB(int error, const char* description)
 {
 	std::fprintf(stderr, "Error #%d: %s\n", error, description);
 }
 
-AudioIO::AudioIO(const char* fp) : 
-	m_aFile(fp, std::ios::in | std::ios::binary)
+AudioIO::AudioIO() : wh({})
 {
 }
 
-int AudioIO::readFileBytes(char (&buffer)[4])
+int AudioIO::readAudioStream(char *buffer, int bytes, std::ifstream &aFile)
 {
-	if (!m_aFile.read(buffer, 4)) {
-		std::fprintf(stderr, "Error parsing audio file. Read %" PRIu64 " bytes when %d were expected.\n", m_aFile.gcount(), 4);
-		m_aFile.clear();
+	if (!aFile.read(buffer, bytes)) {
+		std::fprintf(stderr, "Error parsing audio file. Read %" PRIu64 " bytes when %d were expected.\n", aFile.gcount(), bytes);
+		aFile.clear();
 		return -1;
 	}
 
 	return 0;
 }
 
-int AudioIO::readFileBytes(uint32_t* val)
+void AudioIO::readChar(char* buffer, int* offset, char (&val)[4])
 {
-	char buffer[4];
-	if (!m_aFile.read(buffer, 4)) {
-		std::fprintf(stderr, "Error parsing audio file. Read %" PRIu64 " bytes when %d were expected.\n", m_aFile.gcount(), 4);
-		m_aFile.clear();
-		return -1;
-	}
-
-	std::copy(std::begin(buffer), std::end(buffer), val);
-	return 0;
-
+	std::copy(buffer + *offset, buffer + *offset + 4, val);
+	*offset += 4;
 }
 
-int AudioIO::readFileBytes(uint16_t *val)
+/**
+* Reads 16-bit unsigned integer from buffer
+* @param buffer the binary data buffer
+* @param offset the buffer offset
+* @return UINT16
+*/
+uint16_t AudioIO::read16(char* buffer, int* offset)
 {
-	char buffer[2];
-	if (!m_aFile.read(buffer, 2)) {
-		std::fprintf(stderr, "Error parsing audio file. Read %" PRIu64 " bytes when %d were expected.\n", m_aFile.gcount(), 2);
-		m_aFile.clear();
-		return -1;
-	}
-
-	std::copy(std::begin(buffer), std::end(buffer), val);
-	return 0;
+	uint16_t val = (buffer[*offset + 1] << 8 | buffer[*offset]);
+	*offset += 2;
+	return val;
 }
 
-int AudioIO::parseWAVFile()
+/**
+* Reads 32-bit unsigned integer from buffer
+* @param buffer the binary data buffer
+* @param offset the buffer offset
+* @return UINT32
+*/
+uint32_t AudioIO::read32(char* buffer, int* offset)
 {
-	WAVHeader wh;
+	uint16_t lsb = read16(buffer, offset);
+	uint16_t msb = read16(buffer, offset);
+	return (msb << 16 | lsb);
+}
 
-	if (readFileBytes(wh.riffID))
+/**
+* Load WAV file into memory
+* @param fp filepath string
+*/
+int AudioIO::loadWAVFile(const char* fp)
+{
+	// Open audio file stream and prepare to read
+	std::ifstream aFile(fp, std::ios::in | std::ios::binary);
+	char headerBuffer[WAV_HEADER_BYTE_SIZE];
+	int offset = 0;
+
+	// Read Header into Memory
+	if (readAudioStream(headerBuffer, WAV_HEADER_BYTE_SIZE, aFile))
 		return -1;
 
-	if (readFileBytes(&(wh.riffSize)))
+	// Parse Header
+	readChar(headerBuffer, &offset, wh.riffID);
+	wh.riffSize = read32(headerBuffer, &offset);
+	readChar(headerBuffer, &offset, wh.riffFType);
+	readChar(headerBuffer, &offset, wh.fmtID);
+	wh.fmtSize = read32(headerBuffer, &offset);
+	wh.aFmt = read16(headerBuffer, &offset);
+	wh.numChans = read16(headerBuffer, &offset);
+	wh.sRate = read32(headerBuffer, &offset);
+	wh.byRate = read32(headerBuffer, &offset);
+	wh.blAlign = read16(headerBuffer, &offset);
+	wh.bps = read16(headerBuffer, &offset);
+	readChar(headerBuffer, &offset, wh.dataID);
+	wh.dataSize = read32(headerBuffer, &offset);
+	
+	// Load WAV Data Into Memory
+	char *dataBuffer = (char *) std::malloc(wh.dataSize * sizeof(char));
+	if (readAudioStream(dataBuffer, wh.dataSize, aFile))
 		return -1;
 
-	if (readFileBytes(wh.riffFType))
-		return -1;
+	// Load WAV Data Buffer Into Object Vector
+	wd.insert(wd.begin(), dataBuffer, (dataBuffer+wh.dataSize));
 
-	if (readFileBytes(wh.fmtID))
-		return -1;
-
-	if (readFileBytes(&(wh.fmtSize)))
-		return -1;
-
-	if (readFileBytes(&(wh.aFmt)))
-		return -1;
-
-	if (readFileBytes(&(wh.numChans)))
-		return -1;
-
-	if (readFileBytes(&(wh.sRate)))
-		return -1;
-
-	if (readFileBytes(&(wh.sRate)))
-		return -1;
-
-	if (readFileBytes(&(wh.bRate)))
-		return -1;
-
-	if (readFileBytes(&(wh.blAlign)))
-		return -1;
-
-	if (readFileBytes(&(wh.bps)))
-		return -1;
-
-	if (readFileBytes(wh.dataID))
-		return -1;
-
-	if (readFileBytes(&(wh.dataSize)))
-		return -1;
+	// Free WAV Data Buffer
+	std::free(dataBuffer);
+	dataBuffer = NULL;
 
 	return 0;
 }
@@ -132,13 +118,16 @@ VideoIO::VideoIO(std::string title) :
 {
 }
 
-
+/**
+* Open OpenGL window and set current context
+* @return 0 if there is no error, 1 if there is
+*/
 int VideoIO::openWindow()
 {
-	int ret = 0;
+	int noErr = glfwInit();
 
 	// Initialize GLFW
-	if (glfwInit()) {
+	if (noErr) {
 		glfwSetErrorCallback(errCB);
 
 		// Set up context
@@ -146,27 +135,25 @@ int VideoIO::openWindow()
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 		GLFWwindow* window = glfwCreateWindow(640, 640, m_title.c_str(), NULL, NULL);
 
+		noErr = !window;
 		if (window) {
+			// Set current context to the instantiated window and GL parameters
 			glfwMakeContextCurrent(window);
 			glfwSwapInterval(1);
 			gladLoadGL(glfwGetProcAddress);
 
+			// Keep window open while close event hasn't been sent
 			while (!glfwWindowShouldClose(window)) {
 				glClear(GL_COLOR_BUFFER_BIT);
 				glfwSwapBuffers(window);
 				glfwPollEvents();
 			}
 
+			// Destroy window
 			glfwDestroyWindow(window);
 		}
-		else {
-			ret = -1;
-		}
-	}
-	else {
-		ret = -1;
 	}
 
 	glfwTerminate();
-	return ret;
+	return (!noErr);
 }
