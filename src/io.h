@@ -38,10 +38,9 @@ class AudioIO
 private:
 	WAVHeader wh;
 	std::vector<char> wd;
-	int readAudioStream(char* buffer, int bytes, std::ifstream &aFile);
-	void readChar(char* buffer, int* offset, char (&val)[4]);
-	uint16_t read16(char* buffer, int* offset);
-	uint32_t read32(char* buffer, int* offset);
+	void readChar(std::ifstream &aFile, char (&buffer)[4]);
+	uint16_t read16(std::ifstream &aFile);
+	uint32_t read32(std::ifstream &aFile);
 public:
 	AudioIO();
 	int loadWAVFile(const char* fp);

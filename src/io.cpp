@@ -14,9 +14,7 @@
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
-#define WAV_HEADER_BYTE_SIZE 44
-
-void errCB(int error, const char* description)
+void OpenGLErrCB(int error, const char* description)
 {
 	std::fprintf(stderr, "Error #%d: %s\n", error, description);
 }
@@ -25,21 +23,9 @@ AudioIO::AudioIO() : wh({})
 {
 }
 
-int AudioIO::readAudioStream(char *buffer, int bytes, std::ifstream &aFile)
+void AudioIO::readChar(std::ifstream &aFile, char (&buffer)[4])
 {
-	if (!aFile.read(buffer, bytes)) {
-		std::fprintf(stderr, "Error parsing audio file. Read %" PRIu64 " bytes when %d were expected.\n", aFile.gcount(), bytes);
-		aFile.clear();
-		return -1;
-	}
-
-	return 0;
-}
-
-void AudioIO::readChar(char* buffer, int* offset, char (&val)[4])
-{
-	std::copy(buffer + *offset, buffer + *offset + 4, val);
-	*offset += 4;
+	aFile.read(buffer, sizeof(char) * 4);
 }
 
 /**
@@ -48,10 +34,10 @@ void AudioIO::readChar(char* buffer, int* offset, char (&val)[4])
 * @param offset the buffer offset
 * @return UINT16
 */
-uint16_t AudioIO::read16(char* buffer, int* offset)
+uint16_t AudioIO::read16(std::ifstream &aFile)
 {
-	uint16_t val = (buffer[*offset + 1] << 8 | buffer[*offset]);
-	*offset += 2;
+	uint16_t val; 
+	aFile.read(reinterpret_cast<char*>(&val), sizeof(uint16_t));
 	return val;
 }
 
@@ -61,11 +47,11 @@ uint16_t AudioIO::read16(char* buffer, int* offset)
 * @param offset the buffer offset
 * @return UINT32
 */
-uint32_t AudioIO::read32(char* buffer, int* offset)
+uint32_t AudioIO::read32(std::ifstream &aFile)
 {
-	uint16_t lsb = read16(buffer, offset);
-	uint16_t msb = read16(buffer, offset);
-	return (msb << 16 | lsb);
+	uint32_t val;
+	aFile.read(reinterpret_cast<char*>(&val), sizeof(uint32_t));
+	return val;
 }
 
 /**
@@ -76,39 +62,41 @@ int AudioIO::loadWAVFile(const char* fp)
 {
 	// Open audio file stream and prepare to read
 	std::ifstream aFile(fp, std::ios::in | std::ios::binary);
-	char headerBuffer[WAV_HEADER_BYTE_SIZE];
-	int offset = 0;
+	aFile.exceptions(std::ios::failbit | std::ios::badbit);
 
-	// Read Header into Memory
-	if (readAudioStream(headerBuffer, WAV_HEADER_BYTE_SIZE, aFile))
+	try {
+		// Parse Header
+		readChar(aFile, wh.riffID);
+		wh.riffSize = read32(aFile);
+		readChar(aFile, wh.riffFType);
+		readChar(aFile, wh.fmtID);
+		wh.fmtSize = read32(aFile);
+		wh.aFmt = read16(aFile);
+		wh.numChans = read16(aFile);
+		wh.sRate = read32(aFile);
+		wh.byRate = read32(aFile);
+		wh.blAlign = read16(aFile);
+		wh.bps = read16(aFile);
+		readChar(aFile, wh.dataID);
+		wh.dataSize = read32(aFile);
+
+		// Load WAV Data Into Memory
+		char* dataBuffer = (char*)std::malloc(wh.dataSize * sizeof(char));
+		aFile.read(dataBuffer, wh.dataSize);
+
+		// Load WAV Data Buffer Into Object Vector
+		wd.insert(wd.begin(), dataBuffer, (dataBuffer + wh.dataSize));
+
+		// Free WAV Data Buffer
+		std::free(dataBuffer);
+		dataBuffer = NULL;
+	}
+	catch (std::ifstream::failure e) {
+		std::cerr << "File stream failure: " << e.what() << std::endl
+				  << "Error code: " << e.code() << std::endl;
+		aFile.clear();
 		return -1;
-
-	// Parse Header
-	readChar(headerBuffer, &offset, wh.riffID);
-	wh.riffSize = read32(headerBuffer, &offset);
-	readChar(headerBuffer, &offset, wh.riffFType);
-	readChar(headerBuffer, &offset, wh.fmtID);
-	wh.fmtSize = read32(headerBuffer, &offset);
-	wh.aFmt = read16(headerBuffer, &offset);
-	wh.numChans = read16(headerBuffer, &offset);
-	wh.sRate = read32(headerBuffer, &offset);
-	wh.byRate = read32(headerBuffer, &offset);
-	wh.blAlign = read16(headerBuffer, &offset);
-	wh.bps = read16(headerBuffer, &offset);
-	readChar(headerBuffer, &offset, wh.dataID);
-	wh.dataSize = read32(headerBuffer, &offset);
-	
-	// Load WAV Data Into Memory
-	char *dataBuffer = (char *) std::malloc(wh.dataSize * sizeof(char));
-	if (readAudioStream(dataBuffer, wh.dataSize, aFile))
-		return -1;
-
-	// Load WAV Data Buffer Into Object Vector
-	wd.insert(wd.begin(), dataBuffer, (dataBuffer+wh.dataSize));
-
-	// Free WAV Data Buffer
-	std::free(dataBuffer);
-	dataBuffer = NULL;
+	}
 
 	return 0;
 }
@@ -128,7 +116,7 @@ int VideoIO::openWindow()
 
 	// Initialize GLFW
 	if (noErr) {
-		glfwSetErrorCallback(errCB);
+		glfwSetErrorCallback(OpenGLErrCB);
 
 		// Set up context
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
